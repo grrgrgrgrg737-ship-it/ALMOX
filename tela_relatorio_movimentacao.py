@@ -65,6 +65,11 @@ class RelatorioMovimentacaoWindow(QDialog):
         self.origem_destino_filter_combo = QComboBox()
         self.origem_destino_filter_combo.addItem("Todos", "Todos")
         filter_layout.addWidget(self.origem_destino_filter_combo, 2, 3)
+
+        filter_layout.addWidget(QLabel("Tipo de Depósito:"), 3, 0)
+        self.tipo_deposito_combo = QComboBox()
+        self.tipo_deposito_combo.addItems(["Todos", "Principal", "Emergência"])
+        filter_layout.addWidget(self.tipo_deposito_combo, 3, 1)
         btn_layout = QHBoxLayout()
         self.btn_generate_report = QPushButton("Gerar Relatório")
         self.btn_generate_report.setIcon(QIcon(os.path.join(os.path.dirname(__file__), "icons", "report_generate.png")))
@@ -116,6 +121,7 @@ class RelatorioMovimentacaoWindow(QDialog):
         selected_deposito_id = self.deposito_filter_combo.currentData()
         selected_tipo = self.tipo_movimentacao_combo.currentText()
         selected_origem_destino = self.origem_destino_filter_combo.currentData()
+        selected_tipo_deposito = self.tipo_deposito_combo.currentText()
 
         self.tabela_movimentacoes.setRowCount(0)
 
@@ -125,7 +131,8 @@ class RelatorioMovimentacaoWindow(QDialog):
             item_id=selected_item_id,
             deposito_id=selected_deposito_id,
             tipo_movimentacao=selected_tipo,
-            origem_destino_filter=selected_origem_destino
+            origem_destino_filter=selected_origem_destino,
+            tipo_deposito=selected_tipo_deposito
         )
 
         if movimentacoes:

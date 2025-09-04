@@ -110,7 +110,21 @@ class SaidaEstoqueWindow(QDialog):
         # Carrega Depósitos
         self.deposito_combobox.clear()
         self.deposito_combobox.addItem("Selecione um depósito...", None)
-        for dep in database_manager.get_all_depositos(): self.deposito_combobox.addItem(dep['nome'], dep['id'])
+        depositos = database_manager.get_all_depositos()
+        if depositos:
+            # Separar por tipo e ordenar
+            principais = sorted([d for d in depositos if d.get('tipo', 'Principal') == 'Principal'], key=lambda x: x['nome'])
+            emergencia = sorted([d for d in depositos if d.get('tipo') == 'Emergência'], key=lambda x: x['nome'])
+
+            if principais:
+                for deposito in principais:
+                    self.deposito_combobox.addItem(f"{deposito['nome']}", userData=deposito['id'])
+
+            if emergencia:
+                if self.deposito_combobox.count() > 1:
+                    self.deposito_combobox.insertSeparator(self.deposito_combobox.count())
+                for deposito in emergencia:
+                    self.deposito_combobox.addItem(f"{deposito['nome']} (Emergência)", userData=deposito['id'])
 
         # Carrega Técnicos
         self.tecnico_combobox.blockSignals(True)

@@ -105,10 +105,10 @@ def get_deposito_by_name(nome):
     with db_connect() as conn:
         return conn.cursor().execute("SELECT * FROM depositos WHERE nome = ?", (nome,)).fetchone()
 
-def add_deposito(nome, localizacao):
+def add_deposito(nome, localizacao, tipo):
     try:
         with db_connect() as conn:
-            conn.cursor().execute("INSERT INTO depositos (nome, localizacao) VALUES (?, ?)", (nome, localizacao))
+            conn.cursor().execute("INSERT INTO depositos (nome, localizacao, tipo) VALUES (?, ?, ?)", (nome, localizacao, tipo))
             conn.commit()
         return True, "Depósito adicionado com sucesso."
     except sqlite3.IntegrityError:
@@ -116,10 +116,10 @@ def add_deposito(nome, localizacao):
     except Exception as e:
         return False, f"Erro ao adicionar depósito: {e}"
 
-def update_deposito(deposito_id, nome, localizacao):
+def update_deposito(deposito_id, nome, localizacao, tipo):
     try:
         with db_connect() as conn:
-            conn.cursor().execute("UPDATE depositos SET nome = ?, localizacao = ? WHERE id = ?", (nome, localizacao, deposito_id))
+            conn.cursor().execute("UPDATE depositos SET nome = ?, localizacao = ?, tipo = ? WHERE id = ?", (nome, localizacao, tipo, deposito_id))
             conn.commit()
         return True, "Depósito atualizado com sucesso."
     except sqlite3.IntegrityError:
@@ -283,17 +283,25 @@ def get_estoque_by_item_deposito(item_id, deposito_id):
     with db_connect() as conn:
         return conn.cursor().execute("SELECT * FROM estoque WHERE item_id = ? AND deposito_id = ?", (item_id, deposito_id)).fetchone()
 
-def get_estoque_geral(search_term=None):
+def get_estoque_geral(search_term=None, tipo_deposito=None):
     with db_connect() as conn:
         query = """
-            SELECT e.item_id, e.deposito_id, e.quantidade, i.nome as item_nome, i.codigo as item_codigo, d.nome as deposito_nome
+            SELECT e.item_id, e.deposito_id, e.quantidade, i.nome as item_nome, i.codigo as item_codigo, d.nome as deposito_nome, d.tipo as deposito_tipo
             FROM estoque e JOIN itens i ON e.item_id = i.id JOIN depositos d ON e.deposito_id = d.id
         """
+        conditions = []
         params = []
         if search_term:
-            query += " WHERE i.nome LIKE ? OR i.codigo LIKE ?"
+            conditions.append("(i.nome LIKE ? OR i.codigo LIKE ?)")
             params.extend([f"%{search_term}%", f"%{search_term}%"])
-        query += " ORDER BY i.nome, d.nome"
+        if tipo_deposito and tipo_deposito != "Todos":
+            conditions.append("d.tipo = ?")
+            params.append(tipo_deposito)
+
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+
+        query += " ORDER BY d.tipo, i.nome, d.nome"
         return conn.cursor().execute(query, params).fetchall()
 
 def _registrar_movimentacao(item_id, deposito_id, tipo, quantidade, data, origem_destino, observacoes, conn, tecnico_id=None):
@@ -412,33 +420,38 @@ def get_movimentacoes_recentes(limit=5):
             ORDER BY m.id DESC LIMIT ?
         """, (limit,)).fetchall()
 
-def get_movimentacoes(start_date, end_date, item_id=None, deposito_id=None, tipo_movimentacao=None, origem_destino_filter=None):
+def get_movimentacoes(start_date, end_date, item_id=None, deposito_id=None, tipo_movimentacao=None, origem_destino_filter=None, tipo_deposito=None):
     with db_connect() as conn:
         query = """
             SELECT
                 m.id, m.tipo_movimentacao, m.quantidade, m.data_movimentacao,
                 m.origem_destino, m.observacoes,
                 COALESCE(i.codigo || ' - ' || i.nome, 'Item Excluído') as item_display,
-                COALESCE(d.nome, 'Depósito Excluído') as deposito_display
+                COALESCE(d.nome, 'Depósito Excluído') as deposito_display,
+                d.tipo as deposito_tipo
             FROM movimentacoes m
             LEFT JOIN itens i ON m.item_id = i.id
             LEFT JOIN depositos d ON m.deposito_id = d.id
-            WHERE m.data_movimentacao BETWEEN ? AND ?
         """
+        conditions = ["m.data_movimentacao BETWEEN ? AND ?"]
         params = [start_date, end_date]
         if item_id is not None and item_id != -1:
-            query += " AND m.item_id = ?"
+            conditions.append("m.item_id = ?")
             params.append(item_id)
         if deposito_id is not None and deposito_id != -1:
-            query += " AND m.deposito_id = ?"
+            conditions.append("m.deposito_id = ?")
             params.append(deposito_id)
         if tipo_movimentacao and tipo_movimentacao != "Todos":
-            query += " AND m.tipo_movimentacao = ?"
+            conditions.append("m.tipo_movimentacao = ?")
             params.append(tipo_movimentacao.lower())
         if origem_destino_filter and origem_destino_filter != "Todos":
-            query += " AND m.origem_destino LIKE ?"
+            conditions.append("m.origem_destino LIKE ?")
             params.append(f"%{origem_destino_filter}%")
+        if tipo_deposito and tipo_deposito != "Todos":
+            conditions.append("d.tipo = ?")
+            params.append(tipo_deposito)
 
+        query += " WHERE " + " AND ".join(conditions)
         query += " ORDER BY m.data_movimentacao DESC, m.id DESC"
         return conn.cursor().execute(query, params).fetchall()
 
@@ -559,8 +572,13 @@ def create_tables():
             )""")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS depositos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL UNIQUE, localizacao TEXT
+                id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL UNIQUE, localizacao TEXT, tipo TEXT NOT NULL DEFAULT 'Principal'
             )""")
+        # Adiciona a coluna 'tipo' se ela não existir, para compatibilidade com DBs antigos
+        cur.execute("PRAGMA table_info(depositos)")
+        columns = [row['name'] for row in cur.fetchall()]
+        if 'tipo' not in columns:
+            cur.execute("ALTER TABLE depositos ADD COLUMN tipo TEXT NOT NULL DEFAULT 'Principal'")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS tecnicos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL,

@@ -171,8 +171,19 @@ class EntradaEstoqueWindow(QDialog):
         self.cmb_deposito.addItem("-- Selecione um Depósito --", userData=None)
         depositos = database_manager.get_all_depositos()
         if depositos:
-            for deposito in depositos:
-                self.cmb_deposito.addItem(deposito['nome'], userData=deposito['id'])
+            # Separar por tipo e ordenar
+            principais = sorted([d for d in depositos if d.get('tipo', 'Principal') == 'Principal'], key=lambda x: x['nome'])
+            emergencia = sorted([d for d in depositos if d.get('tipo') == 'Emergência'], key=lambda x: x['nome'])
+
+            if principais:
+                for deposito in principais:
+                    self.cmb_deposito.addItem(f"{deposito['nome']}", userData=deposito['id'])
+
+            if emergencia:
+                if self.cmb_deposito.count() > 1: # Adiciona separador apenas se houver itens antes
+                    self.cmb_deposito.insertSeparator(self.cmb_deposito.count())
+                for deposito in emergencia:
+                    self.cmb_deposito.addItem(f"{deposito['nome']} (Emergência)", userData=deposito['id'])
         logging.info("Depósitos carregados no combobox de entrada.")
 
     def load_estoque_atual_to_table(self) -> None:
