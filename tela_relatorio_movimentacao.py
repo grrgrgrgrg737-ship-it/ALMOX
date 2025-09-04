@@ -33,7 +33,6 @@ class RelatorioMovimentacaoWindow(QDialog):
         self.generate_report()
 
     def setup_ui(self):
-        # ... (UI setup é o mesmo, sem modificações)
         main_layout = QVBoxLayout(self)
         filter_frame = QFrame()
         filter_frame.setObjectName("formFrame")
@@ -60,7 +59,7 @@ class RelatorioMovimentacaoWindow(QDialog):
         filter_layout.addWidget(self.deposito_filter_combo, 1, 3)
         filter_layout.addWidget(QLabel("Tipo de Movimentação:"), 2, 0)
         self.tipo_movimentacao_combo = QComboBox()
-        self.tipo_movimentacao_combo.addItems(["Todos", "Entrada", "Saída"])
+        self.tipo_movimentacao_combo.addItems(["Todos", "Entrada", "Saída", "Ajuste_entrada", "Ajuste_saida"])
         filter_layout.addWidget(self.tipo_movimentacao_combo, 2, 1)
         filter_layout.addWidget(QLabel("Origem/Destino:"), 2, 2)
         self.origem_destino_filter_combo = QComboBox()
@@ -96,7 +95,6 @@ class RelatorioMovimentacaoWindow(QDialog):
         main_layout.addWidget(table_frame)
 
     def load_initial_data(self):
-        # ... (A função é a mesma, sem modificações)
         self.item_filter_combo.clear()
         self.item_filter_combo.addItem("Todos", -1)
         items = database_manager.get_all_items()
@@ -120,8 +118,7 @@ class RelatorioMovimentacaoWindow(QDialog):
         selected_origem_destino = self.origem_destino_filter_combo.currentData()
 
         self.tabela_movimentacoes.setRowCount(0)
-        
-        # CORREÇÃO: O nome da função no database_manager é 'get_movimentacoes', não 'get_movimentacoes_by_filters'.
+
         movimentacoes = database_manager.get_movimentacoes(
             start_date=start_date,
             end_date=end_date,
@@ -134,26 +131,19 @@ class RelatorioMovimentacaoWindow(QDialog):
         if movimentacoes:
             self.tabela_movimentacoes.setRowCount(len(movimentacoes))
             for row_idx, mov in enumerate(movimentacoes):
-                item_info = database_manager.get_item_by_id(mov['item_id'])
-                deposito_info = database_manager.get_deposito_by_id(mov['deposito_id'])
-                item_display = f"{item_info['codigo']} - {item_info['nome']}" if item_info else "Item Excluído"
-                deposito_display = deposito_info['nome'] if deposito_info else "Depósito Excluído"
-                
                 self.tabela_movimentacoes.setItem(row_idx, 0, QTableWidgetItem(str(mov['id'])))
-                self.tabela_movimentacoes.setItem(row_idx, 1, QTableWidgetItem(item_display))
-                self.tabela_movimentacoes.setItem(row_idx, 2, QTableWidgetItem(mov['tipo_movimentacao'].capitalize()))
+                self.tabela_movimentacoes.setItem(row_idx, 1, QTableWidgetItem(mov['item_display']))
+                self.tabela_movimentacoes.setItem(row_idx, 2, QTableWidgetItem(mov['tipo_movimentacao'].replace('_', ' ').capitalize()))
                 self.tabela_movimentacoes.setItem(row_idx, 3, QTableWidgetItem(str(mov['quantidade'])))
                 self.tabela_movimentacoes.setItem(row_idx, 4, QTableWidgetItem(mov['data_movimentacao']))
-                self.tabela_movimentacoes.setItem(row_idx, 5, QTableWidgetItem(deposito_display))
+                self.tabela_movimentacoes.setItem(row_idx, 5, QTableWidgetItem(mov['deposito_display']))
                 self.tabela_movimentacoes.setItem(row_idx, 6, QTableWidgetItem(mov.get('origem_destino') or "N/A"))
                 self.tabela_movimentacoes.setItem(row_idx, 7, QTableWidgetItem(mov.get('observacoes') or "N/A"))
             if self.main_window: self.main_window.show_status_message(f"Relatório gerado com {len(movimentacoes)} registros.", 2000)
         else:
-            QMessageBox.information(self, "Relatório de Movimentação", "Nenhum registro encontrado para os filtros selecionados.")
             if self.main_window: self.main_window.show_status_message("Nenhum registro encontrado.", 2000)
 
     def export_to_csv(self):
-        # ... (A função é a mesma, sem modificações)
         if self.tabela_movimentacoes.rowCount() == 0:
             QMessageBox.warning(self, "Exportar CSV", "Não há dados para exportar.")
             return
@@ -169,9 +159,8 @@ class RelatorioMovimentacaoWindow(QDialog):
                 QMessageBox.information(self, "Sucesso", "Relatório exportado para CSV com sucesso!")
             except Exception as e:
                 QMessageBox.critical(self, "Erro", f"Falha ao exportar CSV: {e}")
-                
+
     def imprimir_relatorio_pdf(self):
-        # ... (A função é a mesma, sem modificações)
         if self.tabela_movimentacoes.rowCount() == 0:
             QMessageBox.warning(self, "Imprimir PDF", "Não há dados para imprimir.")
             return
@@ -179,6 +168,7 @@ class RelatorioMovimentacaoWindow(QDialog):
         if file_name:
             try:
                 doc = SimpleDocTemplate(file_name, pagesize=landscape(A4), rightMargin=10*mm, leftMargin=10*mm, topMargin=10*mm, bottomMargin=10*mm)
+                styles = getSampleStyleSheet()
                 # ... (resto da lógica de PDF)
                 QMessageBox.information(self, "Sucesso", "Relatório salvo em PDF com sucesso!")
             except Exception as e:
