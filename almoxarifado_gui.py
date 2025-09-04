@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QMessageBox, QFrame, QSizePolicy, QStatusBar, QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PyQt6.QtGui import QIcon, QCloseEvent
-from PyQt6.QtCore import Qt, QSize, QTimer
+from PyQt6.QtCore import Qt, QSize, QTimer, QObject, QThread, pyqtSignal, pyqtSlot
 
 import database_manager
 import logging
@@ -30,15 +30,38 @@ import tela_ajuste_estoque
 
 logging.basicConfig(filename='almoxarifado.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', encoding='utf-8')
 
+class Worker(QObject):
+    """
+    Worker genérico que executa uma função em um a QThread separada.
+    """
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+
+    def __init__(self, fn, *args, **kwargs):
+        super().__init__()
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+
+    @pyqtSlot()
+    def run(self):
+        try:
+            result = self.fn(*self.args, **self.kwargs)
+            self.finished.emit(result)
+        except Exception as e:
+            logging.error(f"Erro na thread de trabalho: {e}")
+            self.error.emit(str(e))
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Sistema de Almoxarifado - Dashboard")
         self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), "icons", "app_icon.png")))
+        self.worker_thread = None # Para manter referência da thread
         self.showFullScreen()
         self.setup_ui()
         self.apply_stylesheet()
-        
+
         # Timer para atualizar o dashboard periodicamente
         self.dashboard_timer = QTimer(self)
         self.dashboard_timer.timeout.connect(self.refresh_dashboard)
@@ -55,7 +78,7 @@ class MainWindow(QMainWindow):
         # --- Coluna da Esquerda (Dashboard) ---
         dashboard_column = QVBoxLayout()
         dashboard_column.setSpacing(15)
-        
+
         # Painel de Alertas
         alertas_frame = QFrame(objectName="formFrame")
         alertas_layout = QVBoxLayout(alertas_frame)
@@ -81,7 +104,7 @@ class MainWindow(QMainWindow):
 
         # --- Coluna da Direita (Menu de Botões) ---
         menu_column = QVBoxLayout()
-        
+
         menu_grid = QGridLayout()
         menu_grid.setSpacing(15)
 
@@ -108,10 +131,10 @@ class MainWindow(QMainWindow):
             ("Fornecedores", tela_cadastro_fornecedor.abrir_tela_cadastro_fornecedor, "supplier_register.png"),
             ("Técnicos", tela_cadastro_tecnico.abrir_tela_cadastro_tecnico, "technician_register.png"),
         ])
-        
+
         menu_column.addLayout(menu_grid)
         menu_column.addStretch(1)
-        
+
         exit_button = self._create_button("Sair", self.close, "exit.png", "Ctrl+Q", is_danger=True)
         menu_column.addWidget(exit_button, alignment=Qt.AlignmentFlag.AlignRight)
 
@@ -124,12 +147,12 @@ class MainWindow(QMainWindow):
         frame = QFrame(objectName="formFrame")
         layout = QVBoxLayout(frame)
         layout.addWidget(QLabel(title, objectName="sectionHeaderLabel"))
-        
+
         button_grid = QGridLayout()
         for idx, (text, handler, icon) in enumerate(buttons_data):
             button_grid.addWidget(self._create_button(text, handler, icon), idx // 2, idx % 2)
         layout.addLayout(button_grid)
-        
+
         grid_layout.addWidget(frame, row, 0)
 
     def _create_button(self, text, handler, icon_name=None, shortcut=None, is_danger=False):
@@ -150,42 +173,74 @@ class MainWindow(QMainWindow):
         button.setMinimumHeight(40)
         return button
 
+    def _fetch_dashboard_data(self):
+        """Puxa os dados para o dashboard em uma thread separada."""
+        return {
+            "itens_baixo": database_manager.get_itens_abaixo_do_minimo(),
+            "atrasados": database_manager.get_emprestimos_atrasados(),
+            "recentes": database_manager.get_movimentacoes_recentes(limit=5)
+        }
+
     def refresh_dashboard(self):
-        """Atualiza os dados exibidos no dashboard."""
-        try:
-            # Atualiza alertas de estoque baixo
-            itens_baixo = database_manager.get_itens_abaixo_do_minimo()
-            self.lbl_estoque_baixo.setText(f"Itens com estoque baixo: <b style='color: #E74C3C;'>{len(itens_baixo)}</b>")
+        """Inicia a atualização assíncrona dos dados do dashboard."""
+        # Evita iniciar uma nova atualização se uma já estiver em andamento
+        if self.worker_thread and self.worker_thread.isRunning():
+            return
 
-            # Atualiza alertas de empréstimos atrasados
-            atrasados = database_manager.get_emprestimos_atrasados()
-            self.lbl_emprestimos_atrasados.setText(f"Empréstimos atrasados: <b style='color: #F39C12;'>{len(atrasados)}</b>")
+        self.show_status_message("Atualizando dashboard...", 0) # Mensagem persistente
 
-            # Atualiza tabela de atividade recente
-            recentes = database_manager.get_movimentacoes_recentes(limit=5)
-            self.tbl_atividade_recente.setRowCount(len(recentes))
-            for row, mov in enumerate(recentes):
-                tipo = mov['tipo_movimentacao'].replace('_', ' ').capitalize()
-                qtd = mov['quantidade']
-                
-                if 'entrada' in tipo.lower():
-                    tipo_item = QTableWidgetItem(f"⬆ {tipo}")
-                    tipo_item.setForeground(Qt.GlobalColor.green)
-                elif 'saida' in tipo.lower():
-                    tipo_item = QTableWidgetItem(f"⬇ {tipo}")
-                    tipo_item.setForeground(Qt.GlobalColor.red)
-                else: # Ajuste
-                    tipo_item = QTableWidgetItem(f"⚙️ {tipo}")
-                    tipo_item.setForeground(Qt.GlobalColor.yellow)
+        self.worker_thread = QThread()
+        self.worker = Worker(self._fetch_dashboard_data)
+        self.worker.moveToThread(self.worker_thread)
 
-                self.tbl_atividade_recente.setItem(row, 0, QTableWidgetItem(mov['item_nome']))
-                self.tbl_atividade_recente.setItem(row, 1, tipo_item)
-                self.tbl_atividade_recente.setItem(row, 2, QTableWidgetItem(str(qtd)))
-            
-            self.show_status_message("Dashboard atualizado.", 2000)
-        except Exception as e:
-            logging.error(f"Falha ao atualizar dashboard: {e}")
-            self.show_status_message(f"Erro ao carregar dados do dashboard.", 5000)
+        self.worker_thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self._update_dashboard_widgets)
+        self.worker.error.connect(self._on_dashboard_error)
+
+        # Limpeza ao finalizar
+        self.worker.finished.connect(self.worker_thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.worker_thread.finished.connect(self.worker_thread.deleteLater)
+
+        self.worker_thread.start()
+
+    @pyqtSlot(dict)
+    def _update_dashboard_widgets(self, data):
+        """Atualiza os widgets do dashboard com os dados da thread."""
+        # Atualiza alertas de estoque baixo
+        self.lbl_estoque_baixo.setText(f"Itens com estoque baixo: <b style='color: #E74C3C;'>{len(data['itens_baixo'])}</b>")
+
+        # Atualiza alertas de empréstimos atrasados
+        self.lbl_emprestimos_atrasados.setText(f"Empréstimos atrasados: <b style='color: #F39C12;'>{len(data['atrasados'])}</b>")
+
+        # Atualiza tabela de atividade recente
+        self.tbl_atividade_recente.setRowCount(len(data['recentes']))
+        for row, mov in enumerate(data['recentes']):
+            tipo = mov['tipo_movimentacao'].replace('_', ' ').capitalize()
+            qtd = mov['quantidade']
+
+            if 'entrada' in tipo.lower():
+                tipo_item = QTableWidgetItem(f"⬆ {tipo}")
+                tipo_item.setForeground(Qt.GlobalColor.green)
+            elif 'saida' in tipo.lower():
+                tipo_item = QTableWidgetItem(f"⬇ {tipo}")
+                tipo_item.setForeground(Qt.GlobalColor.red)
+            else: # Ajuste
+                tipo_item = QTableWidgetItem(f"⚙️ {tipo}")
+                tipo_item.setForeground(Qt.GlobalColor.yellow)
+
+            self.tbl_atividade_recente.setItem(row, 0, QTableWidgetItem(mov['item_nome']))
+            self.tbl_atividade_recente.setItem(row, 1, tipo_item)
+            self.tbl_atividade_recente.setItem(row, 2, QTableWidgetItem(str(qtd)))
+
+        self.show_status_message("Dashboard atualizado.", 2000)
+        self.worker_thread = None # Permite uma nova atualização
+
+    @pyqtSlot(str)
+    def _on_dashboard_error(self, error_message):
+        """Exibe uma mensagem de erro se a atualização do dashboard falhar."""
+        self.show_status_message(f"Erro ao carregar dados do dashboard.", 5000)
+        self.worker_thread = None # Permite uma nova atualização
 
     def apply_stylesheet(self):
         qss_path = os.path.join(os.path.dirname(__file__), "style.qss")
@@ -199,6 +254,11 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(message, timeout)
 
     def closeEvent(self, event: QCloseEvent):
+        # Para a thread de atualização se ela estiver rodando
+        if self.worker_thread and self.worker_thread.isRunning():
+            self.worker_thread.quit()
+            self.worker_thread.wait()
+
         reply = QMessageBox.question(self, 'Sair', 'Tem certeza que deseja sair?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                                      QMessageBox.StandardButton.No)

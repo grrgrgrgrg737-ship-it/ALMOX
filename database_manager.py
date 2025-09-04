@@ -110,7 +110,7 @@ def update_deposito(deposito_id, nome, localizacao):
         return False, f"Erro: Já existe um depósito com o nome '{nome}'."
     except Exception as e:
         return False, f"Erro ao atualizar depósito: {e}"
-        
+
 def delete_deposito(deposito_id):
     try:
         with db_connect() as conn:
@@ -126,11 +126,11 @@ def delete_deposito(deposito_id):
 def get_all_fornecedores():
     with db_connect() as conn:
         return conn.cursor().execute("SELECT * FROM fornecedores ORDER BY nome").fetchall()
-        
+
 def get_fornecedor_by_id(fornecedor_id):
     with db_connect() as conn:
         return conn.cursor().execute("SELECT * FROM fornecedores WHERE id = ?", (fornecedor_id,)).fetchone()
-        
+
 def get_fornecedor_by_name(nome):
     with db_connect() as conn:
         return conn.cursor().execute("SELECT * FROM fornecedores WHERE nome = ?", (nome,)).fetchone()
@@ -176,7 +176,7 @@ def get_all_tecnicos():
 def get_tecnico_by_id(tecnico_id):
     with db_connect() as conn:
         return conn.cursor().execute("SELECT * FROM tecnicos WHERE id = ?", (tecnico_id,)).fetchone()
-        
+
 def get_tecnico_by_matricula(matricula):
     with db_connect() as conn:
         return conn.cursor().execute("SELECT * FROM tecnicos WHERE matricula = ?", (matricula,)).fetchone()
@@ -191,7 +191,7 @@ def add_tecnico(nome, matricula, setor):
         return False, f"Erro: Técnico com a matrícula '{matricula}' já existe."
     except Exception as e:
         return False, f"Erro ao adicionar técnico: {e}"
-        
+
 def update_tecnico(tecnico_id, nome, matricula, setor):
     try:
         with db_connect() as conn:
@@ -222,7 +222,7 @@ def get_all_ferramentas():
 def get_ferramenta_by_id(ferramenta_id):
     with db_connect() as conn:
         return conn.cursor().execute("SELECT * FROM ferramentas WHERE id = ?", (ferramenta_id,)).fetchone()
-        
+
 def get_ferramenta_by_codigo(codigo):
     with db_connect() as conn:
         return conn.cursor().execute("SELECT * FROM ferramentas WHERE codigo = ?", (codigo,)).fetchone()
@@ -280,12 +280,12 @@ def get_estoque_geral(search_term=None):
         query += " ORDER BY i.nome, d.nome"
         return conn.cursor().execute(query, params).fetchall()
 
-def _registrar_movimentacao(item_id, deposito_id, tipo, quantidade, data, origem_destino, observacoes, conn):
+def _registrar_movimentacao(item_id, deposito_id, tipo, quantidade, data, origem_destino, observacoes, conn, tecnico_id=None):
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO movimentacoes (item_id, deposito_id, tipo_movimentacao, quantidade, data_movimentacao, origem_destino, observacoes)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (item_id, deposito_id, tipo, quantidade, data, origem_destino, observacoes))
+        INSERT INTO movimentacoes (item_id, deposito_id, tipo_movimentacao, quantidade, data_movimentacao, origem_destino, observacoes, tecnico_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (item_id, deposito_id, tipo, quantidade, data, origem_destino, observacoes, tecnico_id))
 
 def register_entry(item_id, quantidade, deposito_id, data, origem=None, observacao=None):
     with db_connect() as conn:
@@ -297,14 +297,14 @@ def register_entry(item_id, quantidade, deposito_id, data, origem=None, observac
         conn.commit()
     return True, "Entrada registrada com sucesso!"
 
-def register_exit(item_id, quantidade, deposito_id, data, destino=None, observacao=None):
+def register_exit(item_id, quantidade, deposito_id, data, destino=None, observacao=None, tecnico_id=None):
     try:
         with db_connect() as conn:
             cur = conn.cursor()
             stock_row = cur.execute("SELECT quantidade FROM estoque WHERE item_id = ? AND deposito_id = ?", (item_id, deposito_id)).fetchone()
             if not stock_row or stock_row['quantidade'] < quantidade:
                 return False, "Quantidade em estoque insuficiente!"
-            _registrar_movimentacao(item_id, deposito_id, 'saida', quantidade, data, destino, observacao, conn)
+            _registrar_movimentacao(item_id, deposito_id, 'saida', quantidade, data, destino, observacao, conn, tecnico_id=tecnico_id)
             cur.execute("UPDATE estoque SET quantidade = quantidade - ? WHERE item_id = ? AND deposito_id = ?", (quantidade, item_id, deposito_id))
             conn.commit()
         return True, "Saída registrada com sucesso."
@@ -422,19 +422,22 @@ def get_consumo_por_item(start_date, end_date, item_id=None, origem_destino_filt
 
 def get_consumo_por_tecnico(start_date, end_date, tecnico_id=None, item_id=None):
     with db_connect() as conn:
-        query = "SELECT m.origem_destino as tecnico_nome, SUM(m.quantidade) as total_consumido FROM movimentacoes m WHERE m.tipo_movimentacao = 'saida' AND m.data_movimentacao BETWEEN ? AND ?"
+        query = """
+            SELECT t.nome as tecnico_nome, SUM(m.quantidade) as total_consumido
+            FROM movimentacoes m
+            JOIN tecnicos t ON m.tecnico_id = t.id
+            WHERE m.tipo_movimentacao IN ('saida', 'ajuste_saida') AND m.data_movimentacao BETWEEN ? AND ?
+        """
         params = [start_date, end_date]
         if tecnico_id is not None and tecnico_id != -1:
-            tecnico = get_tecnico_by_id(tecnico_id)
-            if tecnico:
-                query += " AND m.origem_destino = ?"
-                params.append(tecnico['nome'])
+            query += " AND m.tecnico_id = ?"
+            params.append(tecnico_id)
         if item_id is not None and item_id != -1:
             query += " AND m.item_id = ?"
             params.append(item_id)
-        query += " GROUP BY m.origem_destino ORDER BY total_consumido DESC"
+        query += " GROUP BY t.nome ORDER BY total_consumido DESC"
         return conn.cursor().execute(query, params).fetchall()
-    
+
 def get_all_origem_destino():
     with db_connect() as conn:
         return [row["origem_destino"] for row in conn.cursor().execute("SELECT DISTINCT origem_destino FROM movimentacoes WHERE origem_destino IS NOT NULL AND origem_destino != '' ORDER BY origem_destino")]
@@ -453,24 +456,24 @@ def get_analise_consumo_valorado(start_date, end_date):
 def get_ponto_ressuprimento_data(periodo_dias=90):
     start_date = (datetime.date.today() - datetime.timedelta(days=periodo_dias)).strftime("%Y-%m-%d")
     with db_connect() as conn:
-        query = f"""
+        query = """
             SELECT
                 i.id as item_id, i.nome as item_nome, i.codigo as item_codigo,
                 f.nome as fornecedor_nome, COALESCE(f.prazo_entrega, 0) as lead_time,
                 (SELECT COALESCE(SUM(quantidade), 0) FROM estoque WHERE item_id = i.id) as total_estoque,
                 (SELECT COALESCE(SUM(quantidade), 0) FROM movimentacoes
-                 WHERE item_id = i.id AND tipo_movimentacao = 'saida' AND data_movimentacao >= '{start_date}') as consumo_periodo
+                 WHERE item_id = i.id AND tipo_movimentacao IN ('saida', 'ajuste_saida') AND data_movimentacao >= ?) as consumo_periodo
             FROM itens i
             LEFT JOIN fornecedores f ON i.fornecedor_id = f.id
         """
-        items_data = conn.cursor().execute(query).fetchall()
-        
+        items_data = conn.cursor().execute(query, (start_date,)).fetchall()
+
         result = []
         for item in items_data:
             consumo_medio_diario = item['consumo_periodo'] / periodo_dias if periodo_dias > 0 else 0
             estoque_seguranca = consumo_medio_diario * (item['lead_time'] * 0.5)
             ponto_ressuprimento = (consumo_medio_diario * item['lead_time']) + estoque_seguranca
-            
+
             if item['total_estoque'] <= ponto_ressuprimento:
                 item['consumo_medio_diario'] = consumo_medio_diario
                 item['ponto_ressuprimento'] = ponto_ressuprimento
@@ -536,9 +539,10 @@ def create_tables():
             CREATE TABLE IF NOT EXISTS movimentacoes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, item_id INTEGER, deposito_id INTEGER,
                 tipo_movimentacao TEXT, quantidade INTEGER, data_movimentacao TEXT,
-                origem_destino TEXT, observacoes TEXT,
+                origem_destino TEXT, observacoes TEXT, tecnico_id INTEGER,
                 FOREIGN KEY (item_id) REFERENCES itens(id) ON DELETE SET NULL,
-                FOREIGN KEY (deposito_id) REFERENCES depositos(id) ON DELETE SET NULL
+                FOREIGN KEY (deposito_id) REFERENCES depositos(id) ON DELETE SET NULL,
+                FOREIGN KEY (tecnico_id) REFERENCES tecnicos(id) ON DELETE SET NULL
             )""")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS emprestimos_ferramentas (

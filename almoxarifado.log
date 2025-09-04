@@ -391,3 +391,43 @@
 2025-06-23 11:09:17,786 - WARNING - Ícone não encontrado: C:\Users\lgrinchpum\Desktop\teste\casa\ferramenta\com ferramenta\icons\supplier_register.png
 2025-06-23 11:09:17,786 - WARNING - Ícone não encontrado: C:\Users\lgrinchpum\Desktop\teste\casa\ferramenta\com ferramenta\icons\technician_register.png
 2025-06-23 11:09:17,787 - WARNING - Ícone não encontrado: C:\Users\lgrinchpum\Desktop\teste\casa\ferramenta\com ferramenta\icons\exit.png
+2025-09-04 12:54:45,695 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,695 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,695 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,695 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,696 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,698 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,699 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,699 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,699 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,699 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,701 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,701 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,701 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,702 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,702 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,703 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,703 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,703 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,704 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,704 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,705 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,705 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,705 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,705 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,706 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,707 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,707 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,708 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,708 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,708 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,710 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,710 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:54:45,710 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,710 - ERROR - Erro de conexão com o banco de dados: no such table: depositos
+2025-09-04 12:54:45,710 - ERROR - Erro de conexão com o banco de dados: no such table: fornecedores
+2025-09-04 12:57:06,142 - ERROR - Erro de conexão com o banco de dados: UNIQUE constraint failed: itens.codigo
+2025-09-04 12:58:58,126 - ERROR - Erro de conexão com o banco de dados: UNIQUE constraint failed: itens.codigo
+2025-09-04 12:59:27,637 - ERROR - Erro de conexão com o banco de dados: UNIQUE constraint failed: itens.codigo
+2025-09-04 13:00:11,008 - ERROR - Erro de conexão com o banco de dados: UNIQUE constraint failed: itens.codigo
+2025-09-04 13:07:35,702 - ERROR - Erro de conexão com o banco de dados: UNIQUE constraint failed: itens.codigo
