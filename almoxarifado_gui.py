@@ -116,10 +116,25 @@ class MainWindow(QMainWindow):
         alertas_frame = QFrame(objectName="formFrame")
         alertas_layout = QVBoxLayout(alertas_frame)
         alertas_layout.addWidget(QLabel("Alertas Rápidos", objectName="sectionHeaderLabel"))
-        self.lbl_estoque_baixo = QLabel("Itens com estoque baixo: <b>-</b>")
-        self.lbl_emprestimos_atrasados = QLabel("Empréstimos atrasados: <b>-</b>")
-        alertas_layout.addWidget(self.lbl_estoque_baixo)
-        alertas_layout.addWidget(self.lbl_emprestimos_atrasados)
+
+        # Tabela de Itens com Estoque Baixo
+        alertas_layout.addWidget(QLabel("Itens com Estoque Baixo:"))
+        self.tbl_estoque_baixo = QTableWidget()
+        self.tbl_estoque_baixo.setColumnCount(4)
+        self.tbl_estoque_baixo.setHorizontalHeaderLabels(["Cód.", "Item", "Qtd.", "Mín."])
+        self.tbl_estoque_baixo.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.tbl_estoque_baixo.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        alertas_layout.addWidget(self.tbl_estoque_baixo)
+
+        # Tabela de Empréstimos Atrasados
+        alertas_layout.addWidget(QLabel("Empréstimos Atrasados:"))
+        self.tbl_emprestimos_atrasados = QTableWidget()
+        self.tbl_emprestimos_atrasados.setColumnCount(3)
+        self.tbl_emprestimos_atrasados.setHorizontalHeaderLabels(["Ferramenta", "Técnico", "Devolução"])
+        self.tbl_emprestimos_atrasados.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.tbl_emprestimos_atrasados.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        alertas_layout.addWidget(self.tbl_emprestimos_atrasados)
+
         dashboard_column.addWidget(alertas_frame)
 
         atividade_frame = QFrame(objectName="formFrame")
@@ -218,10 +233,24 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(dict)
     def _update_dashboard_widgets(self, data):
-        self.lbl_estoque_baixo.setText(f"Itens com estoque baixo: <b style='color: #E74C3C;'>{len(data['itens_baixo'])}</b>")
-        self.lbl_emprestimos_atrasados.setText(f"Empréstimos atrasados: <b style='color: #F39C12;'>{len(data['atrasados'])}</b>")
+        # Popula a tabela de estoque baixo
+        itens_baixo = data.get('itens_baixo', [])
+        self.tbl_estoque_baixo.setRowCount(len(itens_baixo))
+        for row, item in enumerate(itens_baixo):
+            self.tbl_estoque_baixo.setItem(row, 0, QTableWidgetItem(item['codigo']))
+            self.tbl_estoque_baixo.setItem(row, 1, QTableWidgetItem(item['nome']))
+            self.tbl_estoque_baixo.setItem(row, 2, QTableWidgetItem(str(item['total_estoque'])))
+            self.tbl_estoque_baixo.setItem(row, 3, QTableWidgetItem(str(item['estoque_minimo'])))
 
-        self.tbl_atividade_recente.setRowCount(len(data['recentes']))
+        # Popula a tabela de empréstimos atrasados
+        atrasados = data.get('atrasados', [])
+        self.tbl_emprestimos_atrasados.setRowCount(len(atrasados))
+        for row, emprestimo in enumerate(atrasados):
+            self.tbl_emprestimos_atrasados.setItem(row, 0, QTableWidgetItem(emprestimo['ferramenta_nome']))
+            self.tbl_emprestimos_atrasados.setItem(row, 1, QTableWidgetItem(emprestimo['tecnico_nome']))
+            self.tbl_emprestimos_atrasados.setItem(row, 2, QTableWidgetItem(emprestimo['data_devolucao_prevista']))
+
+        self.tbl_atividade_recente.setRowCount(len(data.get('recentes', [])))
         for row, mov in enumerate(data['recentes']):
             tipo = mov['tipo_movimentacao'].replace('_', ' ').capitalize()
             qtd = mov['quantidade']

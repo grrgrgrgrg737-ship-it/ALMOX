@@ -493,7 +493,7 @@ def get_ponto_ressuprimento_data(periodo_dias=90):
     with db_connect() as conn:
         query = """
             SELECT
-                i.id as item_id, i.nome as item_nome, i.codigo as item_codigo,
+                i.id as item_id, i.nome as item_nome, i.codigo as item_codigo, i.data_cadastro,
                 f.nome as fornecedor_nome, COALESCE(f.prazo_entrega, 0) as lead_time,
                 (SELECT COALESCE(SUM(quantidade), 0) FROM estoque WHERE item_id = i.id) as total_estoque,
                 (SELECT COALESCE(SUM(quantidade), 0) FROM movimentacoes
@@ -504,12 +504,27 @@ def get_ponto_ressuprimento_data(periodo_dias=90):
         items_data = conn.cursor().execute(query, (start_date,)).fetchall()
 
         result = []
+        today = datetime.date.today()
         for item in items_data:
-            consumo_medio_diario = item['consumo_periodo'] / periodo_dias if periodo_dias > 0 else 0
+            # Calcula o número de dias real para o consumo médio, considerando a data de cadastro do item
+            dias_reais_de_consumo = periodo_dias
+            if item['data_cadastro']:
+                try:
+                    data_cadastro = datetime.datetime.strptime(item['data_cadastro'], '%Y-%m-%d').date()
+                    dias_existencia = (today - data_cadastro).days
+                    dias_reais_de_consumo = min(periodo_dias, dias_existencia)
+                except (ValueError, TypeError):
+                    pass # Mantém o período padrão se a data for inválida
+
+            # Evita divisão por zero
+            dias_reais_de_consumo = max(1, dias_reais_de_consumo)
+
+            consumo_medio_diario = item['consumo_periodo'] / dias_reais_de_consumo
             estoque_seguranca = consumo_medio_diario * (item['lead_time'] * 0.5)
             ponto_ressuprimento = (consumo_medio_diario * item['lead_time']) + estoque_seguranca
 
-            if item['total_estoque'] <= ponto_ressuprimento:
+            # Adiciona ao relatório apenas se o estoque estiver abaixo do ponto de ressuprimento
+            if item['total_estoque'] <= ponto_ressuprimento and ponto_ressuprimento > 0:
                 item['consumo_medio_diario'] = consumo_medio_diario
                 item['ponto_ressuprimento'] = ponto_ressuprimento
                 result.append(item)

@@ -138,6 +138,7 @@ class RelatorioABCWindow(QDialog):
             
         # 3. Agora, configurar apenas as fatias que restaram
         for s in series.slices():
+            s.setProperty("original_label", s.label())
             s.setLabelVisible(True)
             s.setLabel(f"<b>{s.percentage()*100:.1f}%</b>")
             s.setLabelFont(QFont("Segoe UI", 8))
@@ -162,7 +163,7 @@ class RelatorioABCWindow(QDialog):
         slice.setExploded(state)
 
         if state:
-            label_text = slice.label() # O nome da fatia (ex: "Classe A")
+            label_text = slice.property("original_label")
             value = slice.value()
             percent = slice.percentage() * 100
             self.chart_tooltip_label.setText(f"<b>{label_text}</b>: R$ {value:.2f} ({percent:.1f}%)")

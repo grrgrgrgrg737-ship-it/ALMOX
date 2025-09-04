@@ -169,7 +169,37 @@ class RelatorioMovimentacaoWindow(QDialog):
             try:
                 doc = SimpleDocTemplate(file_name, pagesize=landscape(A4), rightMargin=10*mm, leftMargin=10*mm, topMargin=10*mm, bottomMargin=10*mm)
                 styles = getSampleStyleSheet()
-                # ... (resto da lógica de PDF)
+                elements = []
+
+                # Title
+                title_style = styles['h1']
+                title_style.alignment = TA_CENTER
+                title_style.textColor = HexColor('#002060')
+                elements.append(Paragraph("Relatório de Movimentação de Estoque", title_style))
+                elements.append(Spacer(1, 12*mm))
+
+                # Table Data
+                headers = [self.tabela_movimentacoes.horizontalHeaderItem(i).text() for i in range(self.tabela_movimentacoes.columnCount())]
+                data = [headers]
+                for row in range(self.tabela_movimentacoes.rowCount()):
+                    row_data = [self.tabela_movimentacoes.item(row, col).text() if self.tabela_movimentacoes.item(row, col) else "" for col in range(self.tabela_movimentacoes.columnCount())]
+                    data.append(row_data)
+
+                # Create Table
+                table = Table(data, repeatRows=1)
+                style = TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), HexColor('#002060')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), HexColor('#FFFFFF')),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), HexColor('#DDEBF7')),
+                    ('GRID', (0, 0), (-1, -1), 1, black)
+                ])
+                table.setStyle(style)
+                elements.append(table)
+
+                doc.build(elements)
                 QMessageBox.information(self, "Sucesso", "Relatório salvo em PDF com sucesso!")
             except Exception as e:
                 QMessageBox.critical(self, "Erro", f"Falha ao gerar PDF: {e}")
