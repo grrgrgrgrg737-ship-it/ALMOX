@@ -10,6 +10,7 @@ from PyQt6.QtGui import QIntValidator, QDoubleValidator, QIcon
 import database_manager
 import logging
 import os
+import csv
 from io import BytesIO
 
 # Imports necessários para a geração de PDF
@@ -97,6 +98,16 @@ class CadastroItemWindow(QDialog):
         buttons_layout.addWidget(self.generate_qr_button)
         main_layout.addLayout(buttons_layout)
 
+        # Layout para busca e exportação
+        table_actions_layout = QHBoxLayout()
+        self.search_input = QLineEdit(placeholderText="Buscar por código ou nome...")
+        self.search_input.textChanged.connect(self.filter_table)
+        table_actions_layout.addWidget(self.search_input)
+
+        self.export_button = QPushButton("Exportar CSV", clicked=self.export_to_csv, objectName="secondaryButton")
+        table_actions_layout.addWidget(self.export_button)
+        main_layout.addLayout(table_actions_layout)
+
         self.table_itens = QTableWidget()
         self.table_itens.setColumnCount(8)
         self.table_itens.setHorizontalHeaderLabels(["ID", "Código", "Nome", "Descrição", "UM", "Est. Mín.", "Preço Custo", "Fornecedor"])
@@ -118,9 +129,9 @@ class CadastroItemWindow(QDialog):
             for f in fornecedores:
                 self.fornecedor_combo.addItem(f['nome'], f['id'])
 
-    def load_items_to_table(self):
+    def load_items_to_table(self, search_term: str = None):
         self.table_itens.setRowCount(0)
-        itens = database_manager.get_all_items()
+        itens = database_manager.get_all_items(search_term)
         self.table_itens.setRowCount(len(itens))
         for row, item in enumerate(itens):
             self.table_itens.setItem(row, 0, QTableWidgetItem(str(item['id'])))
@@ -132,6 +143,10 @@ class CadastroItemWindow(QDialog):
             preco_str = f"R$ {item.get('preco_unitario', 0):.2f}".replace('.', ',')
             self.table_itens.setItem(row, 6, QTableWidgetItem(preco_str))
             self.table_itens.setItem(row, 7, QTableWidgetItem(item['fornecedor_nome']))
+
+    def filter_table(self):
+        search_term = self.search_input.text().strip()
+        self.load_items_to_table(search_term)
 
     def on_selection_changed(self):
         if not self.table_itens.selectedItems():
@@ -228,6 +243,25 @@ class CadastroItemWindow(QDialog):
                 self.clear_form(ask_confirmation=False)
             else:
                 QMessageBox.critical(self, "Erro", f"Erro ao excluir item: {message}")
+
+    def export_to_csv(self):
+        """Exporta os itens visíveis na tabela para um arquivo CSV."""
+        path, _ = QFileDialog.getSaveFileName(self, "Salvar como CSV", "itens.csv", "CSV Files (*.csv)")
+        if not path:
+            return
+
+        try:
+            with open(path, 'w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+                headers = [self.table_itens.horizontalHeaderItem(i).text() for i in range(self.table_itens.columnCount())]
+                writer.writerow(headers)
+
+                for row in range(self.table_itens.rowCount()):
+                    row_data = [self.table_itens.item(row, col).text() for col in range(self.table_itens.columnCount())]
+                    writer.writerow(row_data)
+            QMessageBox.information(self, "Sucesso", f"Dados exportados com sucesso para:\n{path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Erro ao Exportar", f"Ocorreu um erro: {e}")
 
     def generate_qr_label(self):
         """Gera uma etiqueta QR Code para o item selecionado em formato PDF."""

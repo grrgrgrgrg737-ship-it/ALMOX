@@ -27,7 +27,7 @@ def dict_factory(cursor, row):
     return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
 
 # --- Funções CRUD: Itens ---
-def get_all_items():
+def get_all_items(search_term: str = None):
     with db_connect() as conn:
         query = """
             SELECT
@@ -37,9 +37,15 @@ def get_all_items():
                 COALESCE(f.nome, 'N/A') as fornecedor_nome
             FROM itens i
             LEFT JOIN fornecedores f ON i.fornecedor_id = f.id
-            ORDER BY i.nome
         """
-        return conn.cursor().execute(query).fetchall()
+        params = []
+        if search_term:
+            query += " WHERE i.nome LIKE ? OR i.codigo LIKE ?"
+            params.append(f"%{search_term}%")
+            params.append(f"%{search_term}%")
+
+        query += " ORDER BY i.nome"
+        return conn.cursor().execute(query, params).fetchall()
 
 def get_item_by_id(item_id):
     with db_connect() as conn:
