@@ -48,7 +48,7 @@ class SaidaEstoqueWindow(QDialog):
         self.btn_scan_qr.setFixedWidth(40)
         self.btn_scan_qr.clicked.connect(self.open_qr_scanner)
         item_selection_layout.addWidget(self.btn_scan_qr)
-        
+
         form_layout.addWidget(QLabel("Item:"), 0, 0)
         form_layout.addLayout(item_selection_layout, 0, 1)
 
@@ -61,7 +61,7 @@ class SaidaEstoqueWindow(QDialog):
         self.estoque_atual_display = QLineEdit("0")
         self.estoque_atual_display.setReadOnly(True)
         form_layout.addWidget(self.estoque_atual_display, 2, 1)
-        
+
         form_layout.addWidget(QLabel("Quantidade a Retirar:"), 3, 0)
         self.quantidade_input = QLineEdit()
         self.quantidade_input.setValidator(QIntValidator(1, 999999))
@@ -74,11 +74,11 @@ class SaidaEstoqueWindow(QDialog):
         self.tecnico_combobox.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self.tecnico_combobox.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         form_layout.addWidget(self.tecnico_combobox, 4, 1)
-        
+
         form_layout.addWidget(QLabel("Data da Saída:"), 5, 0)
         self.data_saida_dateedit = QDateEdit(calendarPopup=True, date=QDate.currentDate())
         form_layout.addWidget(self.data_saida_dateedit, 5, 1)
-        
+
         form_layout.addWidget(QLabel("Observações:"), 6, 0)
         self.observacoes_input = QLineEdit()
         form_layout.addWidget(self.observacoes_input, 6, 1)
@@ -154,7 +154,7 @@ class SaidaEstoqueWindow(QDialog):
         data = self.data_saida_dateedit.date().toString("yyyy-MM-dd")
         obs = self.observacoes_input.text().strip()
 
-        success, message = database_manager.register_exit(item_id, quantidade, deposito_id, data, destino, obs)
+        success, message = database_manager.register_exit(item_id, quantidade, deposito_id, data, destino, obs, tecnico_id=tecnico_id)
         if success:
             QMessageBox.information(self, "Sucesso", message)
             self.load_estoque_atual_to_table()
@@ -174,7 +174,7 @@ class SaidaEstoqueWindow(QDialog):
         self.quantidade_input.clear()
         self.observacoes_input.clear()
         self.data_saida_dateedit.setDate(QDate.currentDate())
-        
+
     def load_estoque_atual_to_table(self):
         self.estoque_table.setRowCount(0)
         estoque_geral = database_manager.get_estoque_geral()
@@ -198,7 +198,7 @@ class SaidaEstoqueWindow(QDialog):
         """
         # O QR code contém o CÓDIGO do item.
         item = database_manager.get_item_by_code(qr_data)
-        
+
         if item:
             item_id_scaneado = item['id']
             # Procura o item no ComboBox pelo seu ID
