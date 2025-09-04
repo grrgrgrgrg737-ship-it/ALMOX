@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QMessageBox, QFrame, QSizePolicy, QStatusBar, QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PyQt6.QtGui import QIcon, QCloseEvent
-from PyQt6.QtCore import Qt, QSize, QTimer, QObject, QThread, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import Qt, QSize, QTimer, QObject, QThread, pyqtSignal, pyqtSlot, QMutex
 
 import database_manager
 import logging
@@ -32,41 +32,76 @@ logging.basicConfig(filename='almoxarifado.log', level=logging.INFO, format='%(a
 
 class Worker(QObject):
     """
-    Worker genérico que executa uma função em um a QThread separada.
+    Worker genérico reutilizável que executa uma função em uma QThread separada.
     """
     finished = pyqtSignal(dict)
     error = pyqtSignal(str)
 
-    def __init__(self, fn, *args, **kwargs):
+    def __init__(self):
         super().__init__()
-        self.fn = fn
-        self.args = args
-        self.kwargs = kwargs
+        self._busy = False
+        self._mutex = QMutex()
 
-    @pyqtSlot()
-    def run(self):
+    def is_busy(self):
+        """Verifica se o worker está ocupado, de forma thread-safe."""
+        self._mutex.lock()
+        busy = self._busy
+        self._mutex.unlock()
+        return busy
+
+    @pyqtSlot(object)
+    def run_task(self, fn_to_run):
+        """
+        Executa uma função em background, garantindo que apenas uma seja executada por vez.
+        """
+        self._mutex.lock()
+        if self._busy:
+            self._mutex.unlock()
+            return
+        self._busy = True
+        self._mutex.unlock()
+
         try:
-            result = self.fn(*self.args, **self.kwargs)
+            result = fn_to_run()
             self.finished.emit(result)
         except Exception as e:
             logging.error(f"Erro na thread de trabalho: {e}")
             self.error.emit(str(e))
+        finally:
+            self._mutex.lock()
+            self._busy = False
+            self._mutex.unlock()
 
 class MainWindow(QMainWindow):
+    trigger_refresh = pyqtSignal(object)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Sistema de Almoxarifado - Dashboard")
         self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), "icons", "app_icon.png")))
-        self.worker_thread = None
         self.showFullScreen()
         self.setup_ui()
         self.apply_stylesheet()
+        self.setup_worker_thread()
 
         # Timer para atualizar o dashboard periodicamente
         self.dashboard_timer = QTimer(self)
         self.dashboard_timer.timeout.connect(self.refresh_dashboard)
         self.dashboard_timer.start(30000)
         self.refresh_dashboard()
+
+    def setup_worker_thread(self):
+        """Cria e configura o worker e a thread persistente."""
+        self.worker = Worker()
+        self.worker_thread = QThread()
+        self.worker.moveToThread(self.worker_thread)
+
+        # Conecta os sinais e slots para a comunicação inter-thread
+        self.trigger_refresh.connect(self.worker.run_task)
+        self.worker.finished.connect(self._update_dashboard_widgets)
+        self.worker.error.connect(self._on_dashboard_error)
+
+        self.worker_thread.start()
 
     def setup_ui(self) -> None:
         central_widget = QWidget()
@@ -174,24 +209,12 @@ class MainWindow(QMainWindow):
         }
 
     def refresh_dashboard(self):
-        if self.worker_thread and self.worker_thread.isRunning():
+        """Dispara a atualização do dashboard se o worker não estiver ocupado."""
+        if self.worker.is_busy():
             return
 
         self.show_status_message("Atualizando dashboard...", 0)
-
-        self.worker_thread = QThread()
-        self.worker = Worker(self._fetch_dashboard_data)
-        self.worker.moveToThread(self.worker_thread)
-
-        self.worker_thread.started.connect(self.worker.run)
-        self.worker.finished.connect(self._update_dashboard_widgets)
-        self.worker.error.connect(self._on_dashboard_error)
-
-        self.worker.finished.connect(self.worker_thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.worker_thread.finished.connect(self.worker_thread.deleteLater)
-
-        self.worker_thread.start()
+        self.trigger_refresh.emit(self._fetch_dashboard_data)
 
     @pyqtSlot(dict)
     def _update_dashboard_widgets(self, data):
@@ -218,12 +241,10 @@ class MainWindow(QMainWindow):
             self.tbl_atividade_recente.setItem(row, 2, QTableWidgetItem(str(qtd)))
 
         self.show_status_message("Dashboard atualizado.", 2000)
-        self.worker_thread = None
 
     @pyqtSlot(str)
     def _on_dashboard_error(self, error_message):
         self.show_status_message(f"Erro ao carregar dados do dashboard.", 5000)
-        self.worker_thread = None
 
     def apply_stylesheet(self):
         qss_path = os.path.join(os.path.dirname(__file__), "style.qss")
@@ -237,16 +258,19 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(message, timeout)
 
     def closeEvent(self, event: QCloseEvent):
-        if self.worker_thread and self.worker_thread.isRunning():
-            self.worker_thread.quit()
-            self.worker_thread.wait()
-
+        self.dashboard_timer.stop()
         reply = QMessageBox.question(self, 'Sair', 'Tem certeza que deseja sair?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                                      QMessageBox.StandardButton.No)
+
         if reply == QMessageBox.StandardButton.Yes:
+            if self.worker_thread.isRunning():
+                self.worker_thread.quit()
+                if not self.worker_thread.wait(5000):
+                    logging.warning("Thread de trabalho não encerrou a tempo.")
             event.accept()
         else:
+            self.dashboard_timer.start(30000)
             event.ignore()
 
 if __name__ == '__main__':
