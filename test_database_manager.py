@@ -59,6 +59,29 @@ class TestDatabaseManager(unittest.TestCase):
         self.assertFalse(success)
         self.assertIn("já existe", message)
 
+    def test_get_all_items_with_search(self):
+        """Testa a busca de itens com termo de pesquisa."""
+        all_items = database_manager.get_all_items()
+        self.assertEqual(len(all_items), 2)
+
+        # Busca por nome
+        items_1 = database_manager.get_all_items(search_term="Item 1")
+        self.assertEqual(len(items_1), 1)
+        self.assertEqual(items_1[0]['nome'], "Item 1")
+
+        # Busca por código
+        items_2 = database_manager.get_all_items(search_term="ITM002")
+        self.assertEqual(len(items_2), 1)
+        self.assertEqual(items_2[0]['codigo'], "ITM002")
+
+        # Busca por termo parcial
+        items_partial = database_manager.get_all_items(search_term="ITM")
+        self.assertEqual(len(items_partial), 2)
+
+        # Busca por termo inexistente
+        items_none = database_manager.get_all_items(search_term="Inexistente")
+        self.assertEqual(len(items_none), 0)
+
     def test_update_item(self):
         """Testa a atualização de um item."""
         item1 = database_manager.get_item_by_code("ITM001")
