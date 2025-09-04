@@ -1,0 +1,24 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Log files
+*.log
+
+# Test databases
+test_almoxarifado.db
+
+# Distribution / packaging
+/dist/
+/build/
+*.egg-info/
+/site/
+.eggs/
+
+# IDE / Editor specific
+.vscode/
+.idea/
+*.swp
+*.swo

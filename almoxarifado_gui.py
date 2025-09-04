@@ -57,7 +57,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Sistema de Almoxarifado - Dashboard")
         self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), "icons", "app_icon.png")))
-        self.worker_thread = None # Para manter referência da thread
+        self.worker_thread = None
         self.showFullScreen()
         self.setup_ui()
         self.apply_stylesheet()
@@ -65,8 +65,8 @@ class MainWindow(QMainWindow):
         # Timer para atualizar o dashboard periodicamente
         self.dashboard_timer = QTimer(self)
         self.dashboard_timer.timeout.connect(self.refresh_dashboard)
-        self.dashboard_timer.start(30000) # Atualiza a cada 30 segundos
-        self.refresh_dashboard() # Carga inicial
+        self.dashboard_timer.start(30000)
+        self.refresh_dashboard()
 
     def setup_ui(self) -> None:
         central_widget = QWidget()
@@ -75,11 +75,9 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(20)
         main_layout.setContentsMargins(20, 20, 20, 20)
 
-        # --- Coluna da Esquerda (Dashboard) ---
         dashboard_column = QVBoxLayout()
         dashboard_column.setSpacing(15)
 
-        # Painel de Alertas
         alertas_frame = QFrame(objectName="formFrame")
         alertas_layout = QVBoxLayout(alertas_frame)
         alertas_layout.addWidget(QLabel("Alertas Rápidos", objectName="sectionHeaderLabel"))
@@ -89,7 +87,6 @@ class MainWindow(QMainWindow):
         alertas_layout.addWidget(self.lbl_emprestimos_atrasados)
         dashboard_column.addWidget(alertas_frame)
 
-        # Painel de Atividade Recente
         atividade_frame = QFrame(objectName="formFrame")
         atividade_layout = QVBoxLayout(atividade_frame)
         atividade_layout.addWidget(QLabel("Atividade Recente", objectName="sectionHeaderLabel"))
@@ -102,13 +99,10 @@ class MainWindow(QMainWindow):
         dashboard_column.addWidget(atividade_frame)
         dashboard_column.addStretch(1)
 
-        # --- Coluna da Direita (Menu de Botões) ---
         menu_column = QVBoxLayout()
-
         menu_grid = QGridLayout()
         menu_grid.setSpacing(15)
 
-        # Agrupando botões por função em frames
         self._add_menu_section(menu_grid, 0, "Operações de Estoque", [
             ("Estoque Geral", tela_estoque_geral.abrir_tela_estoque_geral, "stock_general.png"),
             ("Registrar Entrada", tela_entrada_estoque.abrir_tela_entrada_estoque, "stock_in.png"),
@@ -157,7 +151,6 @@ class MainWindow(QMainWindow):
 
     def _create_button(self, text, handler, icon_name=None, shortcut=None, is_danger=False):
         button = QPushButton(text)
-        # O handler é a função 'abrir_tela_...' que espera 'janela_principal' como argumento
         button.clicked.connect(lambda: handler(self))
         if icon_name:
             icon_path = os.path.join(os.path.dirname(__file__), "icons", icon_name)
@@ -174,7 +167,6 @@ class MainWindow(QMainWindow):
         return button
 
     def _fetch_dashboard_data(self):
-        """Puxa os dados para o dashboard em uma thread separada."""
         return {
             "itens_baixo": database_manager.get_itens_abaixo_do_minimo(),
             "atrasados": database_manager.get_emprestimos_atrasados(),
@@ -182,12 +174,10 @@ class MainWindow(QMainWindow):
         }
 
     def refresh_dashboard(self):
-        """Inicia a atualização assíncrona dos dados do dashboard."""
-        # Evita iniciar uma nova atualização se uma já estiver em andamento
         if self.worker_thread and self.worker_thread.isRunning():
             return
 
-        self.show_status_message("Atualizando dashboard...", 0) # Mensagem persistente
+        self.show_status_message("Atualizando dashboard...", 0)
 
         self.worker_thread = QThread()
         self.worker = Worker(self._fetch_dashboard_data)
@@ -197,7 +187,6 @@ class MainWindow(QMainWindow):
         self.worker.finished.connect(self._update_dashboard_widgets)
         self.worker.error.connect(self._on_dashboard_error)
 
-        # Limpeza ao finalizar
         self.worker.finished.connect(self.worker_thread.quit)
         self.worker.finished.connect(self.worker.deleteLater)
         self.worker_thread.finished.connect(self.worker_thread.deleteLater)
@@ -206,14 +195,9 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(dict)
     def _update_dashboard_widgets(self, data):
-        """Atualiza os widgets do dashboard com os dados da thread."""
-        # Atualiza alertas de estoque baixo
         self.lbl_estoque_baixo.setText(f"Itens com estoque baixo: <b style='color: #E74C3C;'>{len(data['itens_baixo'])}</b>")
-
-        # Atualiza alertas de empréstimos atrasados
         self.lbl_emprestimos_atrasados.setText(f"Empréstimos atrasados: <b style='color: #F39C12;'>{len(data['atrasados'])}</b>")
 
-        # Atualiza tabela de atividade recente
         self.tbl_atividade_recente.setRowCount(len(data['recentes']))
         for row, mov in enumerate(data['recentes']):
             tipo = mov['tipo_movimentacao'].replace('_', ' ').capitalize()
@@ -225,7 +209,7 @@ class MainWindow(QMainWindow):
             elif 'saida' in tipo.lower():
                 tipo_item = QTableWidgetItem(f"⬇ {tipo}")
                 tipo_item.setForeground(Qt.GlobalColor.red)
-            else: # Ajuste
+            else:
                 tipo_item = QTableWidgetItem(f"⚙️ {tipo}")
                 tipo_item.setForeground(Qt.GlobalColor.yellow)
 
@@ -234,13 +218,12 @@ class MainWindow(QMainWindow):
             self.tbl_atividade_recente.setItem(row, 2, QTableWidgetItem(str(qtd)))
 
         self.show_status_message("Dashboard atualizado.", 2000)
-        self.worker_thread = None # Permite uma nova atualização
+        self.worker_thread = None
 
     @pyqtSlot(str)
     def _on_dashboard_error(self, error_message):
-        """Exibe uma mensagem de erro se a atualização do dashboard falhar."""
         self.show_status_message(f"Erro ao carregar dados do dashboard.", 5000)
-        self.worker_thread = None # Permite uma nova atualização
+        self.worker_thread = None
 
     def apply_stylesheet(self):
         qss_path = os.path.join(os.path.dirname(__file__), "style.qss")
@@ -254,7 +237,6 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(message, timeout)
 
     def closeEvent(self, event: QCloseEvent):
-        # Para a thread de atualização se ela estiver rodando
         if self.worker_thread and self.worker_thread.isRunning():
             self.worker_thread.quit()
             self.worker_thread.wait()
@@ -270,7 +252,6 @@ class MainWindow(QMainWindow):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     try:
-        # Garante que as tabelas existam antes de rodar a aplicação
         database_manager.create_tables()
         window = MainWindow()
         window.show()

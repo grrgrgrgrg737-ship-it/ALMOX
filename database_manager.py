@@ -29,7 +29,17 @@ def dict_factory(cursor, row):
 # --- Funções CRUD: Itens ---
 def get_all_items():
     with db_connect() as conn:
-        return conn.cursor().execute("SELECT * FROM itens ORDER BY nome").fetchall()
+        query = """
+            SELECT
+                i.id, i.codigo, i.nome, i.descricao, i.unidade,
+                i.estoque_minimo, i.preco_unitario, i.fornecedor_id,
+                i.data_cadastro,
+                COALESCE(f.nome, 'N/A') as fornecedor_nome
+            FROM itens i
+            LEFT JOIN fornecedores f ON i.fornecedor_id = f.id
+            ORDER BY i.nome
+        """
+        return conn.cursor().execute(query).fetchall()
 
 def get_item_by_id(item_id):
     with db_connect() as conn:
