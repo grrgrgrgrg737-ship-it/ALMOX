@@ -408,13 +408,32 @@ def get_movimentacoes_recentes(limit=5):
 
 def get_movimentacoes(start_date, end_date, item_id=None, deposito_id=None, tipo_movimentacao=None, origem_destino_filter=None):
     with db_connect() as conn:
-        query = "SELECT * FROM movimentacoes WHERE data_movimentacao BETWEEN ? AND ?"
+        query = """
+            SELECT
+                m.id, m.tipo_movimentacao, m.quantidade, m.data_movimentacao,
+                m.origem_destino, m.observacoes,
+                COALESCE(i.codigo || ' - ' || i.nome, 'Item Excluído') as item_display,
+                COALESCE(d.nome, 'Depósito Excluído') as deposito_display
+            FROM movimentacoes m
+            LEFT JOIN itens i ON m.item_id = i.id
+            LEFT JOIN depositos d ON m.deposito_id = d.id
+            WHERE m.data_movimentacao BETWEEN ? AND ?
+        """
         params = [start_date, end_date]
-        if item_id is not None and item_id != -1: query += " AND item_id = ?"; params.append(item_id)
-        if deposito_id is not None and deposito_id != -1: query += " AND deposito_id = ?"; params.append(deposito_id)
-        if tipo_movimentacao and tipo_movimentacao != "Todos": query += " AND tipo_movimentacao = ?"; params.append(tipo_movimentacao.lower())
-        if origem_destino_filter and origem_destino_filter != "Todos": query += " AND origem_destino LIKE ?"; params.append(f"%{origem_destino_filter}%")
-        query += " ORDER BY data_movimentacao DESC, id DESC"
+        if item_id is not None and item_id != -1:
+            query += " AND m.item_id = ?"
+            params.append(item_id)
+        if deposito_id is not None and deposito_id != -1:
+            query += " AND m.deposito_id = ?"
+            params.append(deposito_id)
+        if tipo_movimentacao and tipo_movimentacao != "Todos":
+            query += " AND m.tipo_movimentacao = ?"
+            params.append(tipo_movimentacao.lower())
+        if origem_destino_filter and origem_destino_filter != "Todos":
+            query += " AND m.origem_destino LIKE ?"
+            params.append(f"%{origem_destino_filter}%")
+
+        query += " ORDER BY m.data_movimentacao DESC, m.id DESC"
         return conn.cursor().execute(query, params).fetchall()
 
 def get_consumo_por_item(start_date, end_date, item_id=None, origem_destino_filter=None):
